@@ -11,6 +11,8 @@ ROWS = 100
 COLS = 100
 CELL_SIZE = WIDTH // COLS
 
+LAYER_TEMP = 0
+
 VOID = (0, 0, 0)
 SAND = (255, 255, 0)
 ROCK = (128, 128, 128)
@@ -25,19 +27,19 @@ STEEL = (200, 200, 200)
 BLUE = (0, 0, 255)
 CYAN = (0, 255, 255)
 GREEN = (0, 255, 0)
-YELLOW = (255, 255, 0)
+YELLOW = (0, 0, 0)
 ORANGE = (255, 165, 0)
 RED = (255, 0, 0)
 WHITE = (255, 255, 255)
 
-void = Element(VOID, 0, 0, "Void", 0)
-sand = Element(SAND, 1, 1, "Sand", 0)
-rock = Element(ROCK, 0, 2, "Rock", 0)
-grass = Element(GRASS, 0, 3, "Grass", 0)
-water = Element(WATER, 1, 4, "Water", 23)
-lava = Element(LAVA, 1, 5, "Lava", 1000)
-vapor = Element(VAPOR, -1, 6, "Vapor", 200)
-helium = Element(HELIUM, 1, 7, "Helium", -273)
+void = Element(VOID, 0, 0, "Void", 0, -1)
+sand = Element(SAND, 1, 1, "Sand", 0, 1)
+rock = Element(ROCK, 0, 2, "Rock", 0, 0)
+grass = Element(GRASS, 0, 3, "Grass", 0, 0)
+water = Element(WATER, 1, 4, "Water", 23, 1)
+lava = Element(LAVA, 1, 5, "Lava", 1200, 1)
+vapor = Element(VAPOR, -1, 6, "Vapor", 100, 1)
+helium = Element(HELIUM, 1, 7, "Helium", -273, 1)
 ice = Element(ICE, 0, 8, "Ice", -15)
 steel = Element(ROCK, 0, 9, "Steel", 0)
 
@@ -55,15 +57,21 @@ pygame.display.set_caption("Simulation")
 # Create a pygame_gui.UIManager
 ui_manager = pygame_gui.UIManager((WIDTH, HEIGHT))
 
-reset_button = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((350, 300), (100, 40)),
+reset_button = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((20, 150), (100, 40)),
                                             text='Reset',
                                             manager=ui_manager
                                             )
+layer_button = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((20, 100), (100, 40)),
+                                            text='Layer',
+                                            manager=ui_manager
+                                        )
+
+
 dropdown_menu = pygame_gui.elements.UIDropDownMenu(
     # get All name of item where are int the elementList
     options_list=[element.name for element in listElement],
     starting_option='Lava',
-    relative_rect=pygame.Rect((350, 200), (100, 30)),
+    relative_rect=pygame.Rect((20, 200), (100, 30)),
     manager=ui_manager)
 
 # Create a 2D list and create Cell object at each
@@ -76,7 +84,10 @@ mouse_down = False
 def smoothTemperature(row, col):
     radius = 4
     tempatures = []
-    if grid[row][col].element.id != 0:
+
+    if grid[row][col].element.id == 0:
+        grid[row][col].temperature = int((grid[row][col].temperature + 0) / 2)
+    else:
         for i in range(-radius, radius + 1):
             for j in range(-radius, radius + 1):
                 if 0 <= row + i < ROWS and 0 <= col + j < COLS:
@@ -93,7 +104,8 @@ def updateElements():
     # Balayage bas vers haut
     for row in reversed(range(ROWS - 1)):
         for col in range(COLS):
-            draw_cell(window, grid[row][col].temperature, row, col, CELL_SIZE)
+            if LAYER_TEMP == 1:
+                draw_cell(window, grid[row][col].temperature, row, col, CELL_SIZE)
             # Floor
             if grid[row][col].element.gravity == 1:
                 updateTemperature(row, col)
@@ -101,14 +113,17 @@ def updateElements():
                     updatePositionElements(row, col, 1)
 
                 if grid[row][col].element.id == 4:
-                    radiusTemp(row, col, 5)
+                     radiusTemp(row, col, 5)
                 if grid[row][col].element.id == 7:
                     radiusTemp(row, col, 5)
                 if grid[row][col].element.id == 5:
                     radiusTemp(row, col, 5)
+                if grid[row][col].element.id == 6:
+                    radiusTemp(row, col, 5)
+                if grid[row][col].element.id == 8:
+                    radiusTemp(row, col, 2)
 
-
-            if (grid[row][col].temperature != 0):
+            if grid[row][col].temperature != 0:
                 smoothTemperature(row, col)
                 temperatureCheck(row, col)
 
@@ -127,16 +142,19 @@ def temperatureCheck(row, col):
     if grid[row][col].temperature > 100:
         if grid[row][col].element.id == 4:  # water
             placeElement(row, col, vapor)
-        if grid[row][col].element.id == 8:
+        if grid[row][col].element.id == 8: # ice
             placeElement(row, col, water)
     if grid[row][col].temperature < 0:
         if grid[row][col].element.id == 4:  # water
             placeElement(row, col, ice)
-        if grid[row][col].element.id == 5: # lava
-            placeElement(row, col, rock)
-    if grid[row][col].temperature <= 100:
+
+    if grid[row][col].temperature < 50:
         if grid[row][col].element.id == 6:  # vapor
             placeElement(row, col, water)
+
+    if grid[row][col].temperature <= 500:
+        if grid[row][col].element.id == 5:  # lava
+            placeElement(row, col, rock)
 
 
 def permutationElement(row, col, gravity):
@@ -162,6 +180,8 @@ def radiusTemp(row, col, radius):
                 distance_factor = 1 - ((i - row) ** 2 + (j - col) ** 2) ** 0.5 / radius
                 grid[i][j].temperature = int(
                     (int(grid[row][col].temperature * distance_factor) + grid[i][j].temperature) / 2)
+
+
 
 
 def updatePositionElements(row, col, gravityLevel):
@@ -246,30 +266,16 @@ while True:
             # Check if mouse button is down and update grid
             if mouse_down and 0 <= row < ROWS and 0 <= col < COLS:
                 element_name = dropdown_menu.selected_option
-                backgroundColor = 0
-                if element_name == 'Sand':
-                    backgroundColor = 1
-                elif element_name == 'Rock':
-                    backgroundColor = 2
-                elif element_name == 'Grass':
-                    backgroundColor = 3
-                elif element_name == 'Void':
-                    backgroundColor = 0
-                elif element_name == 'Water':
-                    backgroundColor = 4
-                elif element_name == 'Lava':
-                    backgroundColor = 5
-                elif element_name == 'Vapor':
-                    backgroundColor = 6
-                elif element_name == 'Helium':
-                    backgroundColor = 7
-                elif element_name == 'Ice':
-                    backgroundColor = 8
-                elif element_name == 'Steel':
-                    backgroundColor = 9
+                elementPlaced = None
+
+                #search for the element in the list by name
+                for element in listElement:
+                    if element.name == element_name:
+                        elementPlaced = element
+
                 if (row, col) != current_cell:
-                    grid[row][col].element = getElementById(backgroundColor)
-                    # refresh()
+                    grid[row][col].element = elementPlaced
+                    refresh()
 
                 current_cell = (row, col)
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -283,6 +289,11 @@ while True:
         for row in range(ROWS):
             for col in range(COLS):
                 grid[row][col] = Cell()
+        if LAYER_TEMP == 0:
+            refresh()
+
+    if layer_button.check_pressed():
+        LAYER_TEMP = 1 - LAYER_TEMP
         refresh()
 
     # Update pygame_gui.UIManager with time_delta
