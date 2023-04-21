@@ -6,4 +6,3 @@ class Element(object):
         self.id = id
         self.name = name
         self.temperature = temperature
-

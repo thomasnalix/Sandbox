@@ -20,18 +20,28 @@ LAVA = (255, 0, 0)
 VAPOR = (0, 255, 255)
 HELIUM = (0, 255, 128)
 ICE = (0, 180, 180)
+STEEL = (200, 200, 200)
+
+BLUE = (0, 0, 255)
+CYAN = (0, 255, 255)
+GREEN = (0, 255, 0)
+YELLOW = (255, 255, 0)
+ORANGE = (255, 165, 0)
+RED = (255, 0, 0)
+WHITE = (255, 255, 255)
 
 void = Element(VOID, 0, 0, "Void", 0)
 sand = Element(SAND, 1, 1, "Sand", 0)
 rock = Element(ROCK, 0, 2, "Rock", 0)
-grass = Element(GRASS, 0, 3, "Grass",0)
-water = Element(WATER, 1, 4, "Water",23)
-lava = Element(LAVA, 1, 5, "Lava",1000)
-vapor = Element(VAPOR, -1, 6, "Vapor",200)
-helium = Element(HELIUM, 1, 7, "Helium",-100)
-ice = Element(ICE, 0, 8, "Ice",0)
+grass = Element(GRASS, 0, 3, "Grass", 0)
+water = Element(WATER, 1, 4, "Water", 23)
+lava = Element(LAVA, 1, 5, "Lava", 1000)
+vapor = Element(VAPOR, -1, 6, "Vapor", 200)
+helium = Element(HELIUM, 1, 7, "Helium", -273)
+ice = Element(ICE, 0, 8, "Ice", -15)
+steel = Element(ROCK, 0, 9, "Steel", 0)
 
-listElement = [void, sand, rock, grass, water, lava, vapor, helium, ice]
+listElement = [void, sand, rock, grass, water, lava, vapor, helium, ice, steel]
 
 # Set up clock
 clock = pygame.time.Clock()
@@ -52,7 +62,7 @@ reset_button = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((350, 300)
 dropdown_menu = pygame_gui.elements.UIDropDownMenu(
     # get All name of item where are int the elementList
     options_list=[element.name for element in listElement],
-    starting_option='Sand',
+    starting_option='Lava',
     relative_rect=pygame.Rect((350, 200), (100, 30)),
     manager=ui_manager)
 
@@ -62,40 +72,71 @@ grid = [[Cell() for col in range(COLS)] for row in range(ROWS)]
 # Keep track of mouse button status
 mouse_down = False
 
+
+def smoothTemperature(row, col):
+    radius = 4
+    tempatures = []
+    if grid[row][col].element.id != 0:
+        for i in range(-radius, radius + 1):
+            for j in range(-radius, radius + 1):
+                if 0 <= row + i < ROWS and 0 <= col + j < COLS:
+                    tempatures.append(grid[row + i][col + j].temperature)
+        grid[row][col].temperature = grid[row][col].element.temperature + sum(tempatures) / len(tempatures)
+
+
+def updateTemperature(row, col):
+    if grid[row][col] != 0:
+        smoothTemperature(row, col)
+
+
 def updateElements():
     # Balayage bas vers haut
     for row in reversed(range(ROWS - 1)):
         for col in range(COLS):
+            draw_cell(window, grid[row][col].temperature, row, col, CELL_SIZE)
             # Floor
             if grid[row][col].element.gravity == 1:
+                updateTemperature(row, col)
                 if grid[row + 1][col].element.id == 0:
                     updatePositionElements(row, col, 1)
-                    if grid[row][col].element.id == 4:
-                        radiusTemp(row, col, 1)
-                    if grid[row][col].element.id == 7:
-                        radiusTemp(row, col, 1)
-                    if grid[row][col].element.id == 5:
-                        radiusTemp(row, col, 1)
 
-            # Transformation
-            if grid[row][col].temperature > 100:
                 if grid[row][col].element.id == 4:
-                    placeElement(row, col, vapor)
+                    radiusTemp(row, col, 5)
                 if grid[row][col].element.id == 7:
-                    placeElement(row, col, water)
-            if grid[row][col].temperature <= -100:
-                if grid[row][col].element.id == 4:
-                    placeElement(row, col, ice)
-                if grid[row][col].element.id == 6:
-                    placeElement(row, col, water)
+                    radiusTemp(row, col, 5)
+                if grid[row][col].element.id == 5:
+                    radiusTemp(row, col, 5)
+
+
+            if (grid[row][col].temperature != 0):
+                smoothTemperature(row, col)
+                temperatureCheck(row, col)
 
     # Balayage haut vers bas
     for row in range(ROWS - 1):
         for col in range(COLS):
             if grid[row][col].element.gravity == -1:
+                updateTemperature(row, col)
                 if grid[row - 1][col].element.gravity == 1 or grid[row - 1][col].element.id == 0:
                     permutationElement(row, col, grid[row][col].element.gravity)
     time.sleep(1 / FPS)
+
+
+def temperatureCheck(row, col):
+    # Transformation
+    if grid[row][col].temperature > 100:
+        if grid[row][col].element.id == 4:  # water
+            placeElement(row, col, vapor)
+        if grid[row][col].element.id == 8:
+            placeElement(row, col, water)
+    if grid[row][col].temperature < 0:
+        if grid[row][col].element.id == 4:  # water
+            placeElement(row, col, ice)
+        if grid[row][col].element.id == 5: # lava
+            placeElement(row, col, rock)
+    if grid[row][col].temperature <= 100:
+        if grid[row][col].element.id == 6:  # vapor
+            placeElement(row, col, water)
 
 
 def permutationElement(row, col, gravity):
@@ -104,22 +145,68 @@ def permutationElement(row, col, gravity):
     placeElement(row, col, element_id_to_replace)
     placeElement(row + gravity, col, element_id_target)
 
+
 def placeElement(row, col, element):
     grid[row][col].element = element
-    grid[row][col].temperature = element.temperature
+    grid[row][col].temperature = (element.temperature + grid[row][col].temperature) / 2
     pygame.draw.rect(window, element.color, (col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+    temperatureCheck(row, col)
+    smoothTemperature(row, col)
+
 
 def radiusTemp(row, col, radius):
-    element = grid[row][col].element
-    for i in range(-radius, radius):
-        for j in range(-radius, radius):
-            if 0 <= row + i < ROWS and 0 <= col + j < COLS:
-                grid[row + i][col + j].temperature = (grid[row + i][col + j].temperature + element.temperature) / 2
+    for i in range(row - radius, row + radius + 1):
+        for j in range(col - radius, col + radius + 1):
+            distance = (i - row) ** 2 + (j - col) ** 2
+            if distance <= radius ** 2:
+                distance_factor = 1 - ((i - row) ** 2 + (j - col) ** 2) ** 0.5 / radius
+                grid[i][j].temperature = int(
+                    (int(grid[row][col].temperature * distance_factor) + grid[i][j].temperature) / 2)
+
 
 def updatePositionElements(row, col, gravityLevel):
     actualElementId = grid[row][col].element
     placeElement(row, col, void)
     placeElement(row + gravityLevel, col, actualElementId)
+    temperatureCheck(row + gravityLevel, col)
+
+
+def lerp(c1, c2, t):
+    r = int(c1[0] + (c2[0] - c1[0]) * t)
+    g = int(c1[1] + (c2[1] - c1[1]) * t)
+    b = int(c1[2] + (c2[2] - c1[2]) * t)
+    if r < 0:
+        r = 0
+    elif r > 255:
+        r = 255
+    if g < 0:
+        g = 0
+    elif g > 255:
+        g = 255
+    if b < 0:
+        b = 0
+    elif b > 255:
+        b = 255
+    return (r, g, b)
+
+
+# Dessiner les cellules en fonction de leur température
+def draw_cell(window, temperature, i, j, CELL_SIZE):
+    if temperature < -273.15:
+        color = WHITE
+    elif temperature < -250:
+        color = lerp(BLUE, CYAN, (temperature + 250) / 200)
+    elif temperature < -50:
+        color = lerp(CYAN, GREEN, (temperature + 50) / 200)
+    elif temperature < 0:
+        color = lerp(GREEN, YELLOW, temperature / 50)
+    elif temperature < 100:
+        color = lerp(YELLOW, ORANGE, temperature / 100)
+    elif temperature < 1000:
+        color = lerp(ORANGE, RED, (temperature - 100) / 900)
+    else:
+        color = RED
+    pygame.draw.rect(window, color, (j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE))
 
 
 def getElementById(id):
@@ -137,6 +224,9 @@ def refresh():
 
 
 current_cell = None
+
+for i in range(COLS):
+    placeElement(50, i, rock)
 
 while True:
     updateElements()
@@ -175,9 +265,12 @@ while True:
                     backgroundColor = 7
                 elif element_name == 'Ice':
                     backgroundColor = 8
+                elif element_name == 'Steel':
+                    backgroundColor = 9
                 if (row, col) != current_cell:
                     grid[row][col].element = getElementById(backgroundColor)
-                    refresh()
+                    # refresh()
+
                 current_cell = (row, col)
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_down = True  # Set mouse button status to down
