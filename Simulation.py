@@ -2,6 +2,8 @@ import pygame
 import sys
 import pygame_gui
 import time
+
+from Transformation import Transformation
 from Element import Element
 from Cell import Cell
 
@@ -20,30 +22,46 @@ GRASS = (0, 255, 0)
 WATER = (0, 0, 255)
 LAVA = (255, 0, 0)
 VAPOR = (0, 255, 255)
-HELIUM = (0, 255, 128)
+AZOTE = (0, 255, 128)
 ICE = (0, 180, 180)
 STEEL = (200, 200, 200)
 
 BLUE = (0, 0, 255)
 CYAN = (0, 255, 255)
 GREEN = (0, 255, 0)
-YELLOW = (0, 0, 0)
+YELLOW = (255, 255, 0)
 ORANGE = (255, 165, 0)
 RED = (255, 0, 0)
-WHITE = (255, 255, 255)
 
-void = Element(VOID, 0, 0, "Void", 0, -1)
-sand = Element(SAND, 1, 1, "Sand", 0, 1)
-rock = Element(ROCK, 0, 2, "Rock", 0, 0)
-grass = Element(GRASS, 0, 3, "Grass", 0, 0)
-water = Element(WATER, 1, 4, "Water", 23, 1)
-lava = Element(LAVA, 1, 5, "Lava", 1200, 1)
-vapor = Element(VAPOR, -1, 6, "Vapor", 100, 1)
-helium = Element(HELIUM, 1, 7, "Helium", -273, 1)
-ice = Element(ICE, 0, 8, "Ice", -15)
-steel = Element(ROCK, 0, 9, "Steel", 0)
+void = Element(VOID, 0, 0, "Void", 14, -1, 0)
+sand = Element(SAND, 1, 1, "Sand", 0, 1, 2)
+rock = Element(ROCK, 0, 2, "Rock", 0, 0, 10)
+grass = Element(GRASS, 0, 3, "Grass", 0, 0, 100)
+water = Element(WATER, 1, 4, "Water", 23, 10, 10)
+lava = Element(LAVA, 1, 5, "Lava", 2000, 1, 5)
+vapor = Element(VAPOR, -1, 6, "Vapor", 100, 1, 5)
+azote = Element(AZOTE, 1, 7, "Azote", -273, 1, 5)
+ice = Element(ICE, 0, 8, "Ice", -15, 0, 2)
+steel = Element(STEEL, 0, 9, "Steel", 0, 0, 100)
 
-listElement = [void, sand, rock, grass, water, lava, vapor, helium, ice, steel]
+trans_vapor = Transformation(0, 100, water)
+trans_ice = Transformation(-275, 0, water)
+trans_waterV = Transformation(100, 100000, vapor)
+trans_waterI = Transformation(-275, 0, ice)
+trans_rock = Transformation(1000, 10000000, lava)
+trans_lava = Transformation(-275, 1000, rock)
+trans_sand = Transformation(1000, 1000000, lava)
+trans_azote = Transformation(0, 100, vapor)
+
+rock.transform = [trans_rock]
+sand.transform = [trans_sand]
+lava.transform = [trans_lava]
+water.transform = [trans_waterV, trans_waterI]
+ice.transform = [trans_ice]
+vapor.transform = [trans_vapor]
+trans_azote = [trans_azote]
+
+listElement = [void, sand, rock, grass, water, lava, vapor, azote, ice, steel]
 
 # Set up clock
 clock = pygame.time.Clock()
@@ -64,8 +82,7 @@ reset_button = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((20, 150),
 layer_button = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((20, 100), (100, 40)),
                                             text='Layer',
                                             manager=ui_manager
-                                        )
-
+                                            )
 
 dropdown_menu = pygame_gui.elements.UIDropDownMenu(
     # get All name of item where are int the elementList
@@ -75,14 +92,14 @@ dropdown_menu = pygame_gui.elements.UIDropDownMenu(
     manager=ui_manager)
 
 # Create a 2D list and create Cell object at each
-grid = [[Cell() for col in range(COLS)] for row in range(ROWS)]
+grid = [[Cell(void.copy()) for col in range(COLS)] for row in range(ROWS)]
 
 # Keep track of mouse button status
 mouse_down = False
 
 
 def smoothTemperature(row, col):
-    radius = 4
+    radius = 1
     tempatures = []
 
     if grid[row][col].element.id == 0:
@@ -104,6 +121,7 @@ def updateElements():
     # Balayage bas vers haut
     for row in reversed(range(ROWS - 1)):
         for col in range(COLS):
+
             if LAYER_TEMP == 1:
                 draw_cell(window, grid[row][col].temperature, row, col, CELL_SIZE)
             # Floor
@@ -112,17 +130,16 @@ def updateElements():
                 if grid[row + 1][col].element.id == 0:
                     updatePositionElements(row, col, 1)
 
-                if grid[row][col].element.id == 4:
-                     radiusTemp(row, col, 5)
-                if grid[row][col].element.id == 7:
-                    radiusTemp(row, col, 5)
-                if grid[row][col].element.id == 5:
-                    radiusTemp(row, col, 5)
-                if grid[row][col].element.id == 6:
-                    radiusTemp(row, col, 5)
-                if grid[row][col].element.id == 8:
-                    radiusTemp(row, col, 2)
+                # Calcul propagation of heat
+                if grid[row][col].element.id in [4, 7, 5, 6]:
+                    radiusTemp(row, col, 4)
 
+            # Calcul heat propagation for ice
+            if grid[row][col].element.gravity == 0:
+                if grid[row][col].element.id == 8:
+                    radiusTemp(row, col, 3)
+
+            # For all element where temperature is not 0, we smooth the temperature by the average of the temperature of the element around
             if grid[row][col].temperature != 0:
                 smoothTemperature(row, col)
                 temperatureCheck(row, col)
@@ -139,29 +156,43 @@ def updateElements():
 
 def temperatureCheck(row, col):
     # Transformation
-    if grid[row][col].temperature > 100:
-        if grid[row][col].element.id == 4:  # water
-            placeElement(row, col, vapor)
-        if grid[row][col].element.id == 8: # ice
-            placeElement(row, col, water)
-    if grid[row][col].temperature < 0:
-        if grid[row][col].element.id == 4:  # water
-            placeElement(row, col, ice)
+    adjacent_temp = 0
+    # top, left, right, bottom AND check if element is not out of range
+    if 0 <= row - 1 < ROWS:
+        adjacent_temp += grid[row - 1][col].temperature
+    if 0 <= col - 1 < COLS:
+        adjacent_temp += grid[row][col - 1].temperature
+    if 0 <= col + 1 < COLS:
+        adjacent_temp += grid[row][col + 1].temperature
+    if 0 <= row + 1 < ROWS:
+        adjacent_temp += grid[row + 1][col].temperature
+    adjacent_temp += grid[row][col].temperature
 
-    if grid[row][col].temperature < 50:
-        if grid[row][col].element.id == 6:  # vapor
-            placeElement(row, col, water)
+    average_temp = adjacent_temp / 5
+    element = grid[row][col].element
+    if element.transform is not None:
+        for transformation in element.transform:
+            if transformation.temperature_min < average_temp < transformation.temperature_max:
+                transform(transformation.element.copy(), row, col)
 
-    if grid[row][col].temperature <= 500:
-        if grid[row][col].element.id == 5:  # lava
-            placeElement(row, col, rock)
+
+def transform(final_element, row, col):
+    durability_factor = 0.1
+    if grid[row][col].temperature > 0:
+        durability_factor = (1 - max(min(100 / grid[row][col].temperature, 0.1), 0.9))
+    elif grid[row][col].temperature < 0:
+        durability_factor = (1 - max(min(abs(100 / grid[row][col].temperature), 0.1), 0.9))
+    grid[row][col].element.durability -= durability_factor
+    if grid[row][col].element.durability <= 0:
+        grid[row][col].element = grid[row][col].element.changeElement(final_element, element.temperature - 10)
+        pygame.draw.rect(window, grid[row][col].element.color, (col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE))
 
 
 def permutationElement(row, col, gravity):
-    element_id_to_replace = grid[row + gravity][col].element
-    element_id_target = grid[row][col].element
-    placeElement(row, col, element_id_to_replace)
-    placeElement(row + gravity, col, element_id_target)
+    element_to_replace = grid[row + gravity][col].element
+    element_target = grid[row][col].element
+    placeElement(row, col, element_to_replace)
+    placeElement(row + gravity, col, element_target)
 
 
 def placeElement(row, col, element):
@@ -172,6 +203,14 @@ def placeElement(row, col, element):
     smoothTemperature(row, col)
 
 
+def updatePositionElements(row, col, gravity_level):
+    element_actual = grid[row][col].element
+    element_target = grid[row + gravity_level][col].element
+    placeElement(row, col, element_target)
+    placeElement(row + gravity_level, col, element_actual)
+    temperatureCheck(row + gravity_level, col)
+
+
 def radiusTemp(row, col, radius):
     for i in range(row - radius, row + radius + 1):
         for j in range(col - radius, col + radius + 1):
@@ -180,15 +219,6 @@ def radiusTemp(row, col, radius):
                 distance_factor = 1 - ((i - row) ** 2 + (j - col) ** 2) ** 0.5 / radius
                 grid[i][j].temperature = int(
                     (int(grid[row][col].temperature * distance_factor) + grid[i][j].temperature) / 2)
-
-
-
-
-def updatePositionElements(row, col, gravityLevel):
-    actualElementId = grid[row][col].element
-    placeElement(row, col, void)
-    placeElement(row + gravityLevel, col, actualElementId)
-    temperatureCheck(row + gravityLevel, col)
 
 
 def lerp(c1, c2, t):
@@ -207,17 +237,15 @@ def lerp(c1, c2, t):
         b = 0
     elif b > 255:
         b = 255
-    return (r, g, b)
+    return r, g, b
 
 
 # Dessiner les cellules en fonction de leur température
 def draw_cell(window, temperature, i, j, CELL_SIZE):
-    if temperature < -273.15:
-        color = WHITE
-    elif temperature < -250:
-        color = lerp(BLUE, CYAN, (temperature + 250) / 200)
+    if temperature < -250:
+        color = lerp(CYAN, BLUE, (temperature + 250) / -200)
     elif temperature < -50:
-        color = lerp(CYAN, GREEN, (temperature + 50) / 200)
+        color = lerp(GREEN, CYAN, (temperature + 50) / -50)
     elif temperature < 0:
         color = lerp(GREEN, YELLOW, temperature / 50)
     elif temperature < 100:
@@ -235,18 +263,12 @@ def getElementById(id):
             return element
 
 
-def refresh():
-    # Draw cells
-    for row in range(ROWS):
-        for col in range(COLS):
-            element = grid[row][col].element
-            placeElement(row, col, element)
-
-
 current_cell = None
+current_element = lava
 
 for i in range(COLS):
-    placeElement(50, i, rock)
+    placeElement(46, i, rock)
+    placeElement(50, i, steel)
 
 while True:
     updateElements()
@@ -265,36 +287,39 @@ while True:
             row = pos[1] // CELL_SIZE
             # Check if mouse button is down and update grid
             if mouse_down and 0 <= row < ROWS and 0 <= col < COLS:
-                element_name = dropdown_menu.selected_option
-                elementPlaced = None
-
-                #search for the element in the list by name
-                for element in listElement:
-                    if element.name == element_name:
-                        elementPlaced = element
 
                 if (row, col) != current_cell:
-                    grid[row][col].element = elementPlaced
-                    refresh()
-
+                    placeElement(row, col, current_element)
                 current_cell = (row, col)
+
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_down = True  # Set mouse button status to down
 
         if event.type == pygame.MOUSEBUTTONUP:
             mouse_down = False  # Set mouse button status to up
 
+    # Reset button
     if reset_button.check_pressed():
         window.fill(VOID)
         for row in range(ROWS):
             for col in range(COLS):
                 grid[row][col] = Cell()
-        if LAYER_TEMP == 0:
-            refresh()
 
+    # Layer button
     if layer_button.check_pressed():
         LAYER_TEMP = 1 - LAYER_TEMP
-        refresh()
+        for row in range(ROWS):
+            for col in range(COLS):
+                pygame.draw.rect(window, grid[row][col].element.color,
+                                 (col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+
+    # if selection was changed, update the element
+    if dropdown_menu.selected_option != current_element:
+        current_element = dropdown_menu.selected_option
+        for element in listElement:
+            if element.name == current_element:
+                current_element = element.copy()
+                break
 
     # Update pygame_gui.UIManager with time_delta
     time_delta = clock.tick(60) / 1000.0
