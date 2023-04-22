@@ -25,6 +25,7 @@ VAPOR = (0, 255, 255)
 AZOTE = (0, 255, 128)
 ICE = (0, 180, 180)
 STEEL = (200, 200, 200)
+AZOTE_GAZ = (250, 250, 255)
 
 BLUE = (0, 0, 255)
 CYAN = (0, 255, 255)
@@ -33,16 +34,17 @@ YELLOW = (255, 255, 0)
 ORANGE = (255, 165, 0)
 RED = (255, 0, 0)
 
-void = Element(VOID, 0, 0, "Void", 14, -1, 0)
-sand = Element(SAND, 1, 1, "Sand", 0, 1, 2)
-rock = Element(ROCK, 0, 2, "Rock", 0, 0, 10)
-grass = Element(GRASS, 0, 3, "Grass", 0, 0, 100)
-water = Element(WATER, 1, 4, "Water", 23, 10, 10)
-lava = Element(LAVA, 1, 5, "Lava", 2000, 1, 5)
-vapor = Element(VAPOR, -1, 6, "Vapor", 100, 1, 5)
-azote = Element(AZOTE, 1, 7, "Azote", -273, 1, 5)
-ice = Element(ICE, 0, 8, "Ice", -15, 0, 2)
-steel = Element(STEEL, 0, 9, "Steel", 0, 0, 100)
+void = Element(VOID, 0, 0, "Void", 0, -1, 0, 1)
+sand = Element(SAND, 1, 1, "Sand", 0, 1, 2, 1)
+rock = Element(ROCK, 0, 2, "Rock", 0, 0, 10, 1)
+grass = Element(GRASS, 0, 3, "Grass", 0, 0, 100, 1)
+water = Element(WATER, 1, 4, "Water", 23, 10, 10, 1.01)
+lava = Element(LAVA, 1, 5, "Lava", 2000, 1, 5, 1.0001)
+vapor = Element(VAPOR, -1, 6, "Vapor", 100, 1, 5, 1.01)
+azote = Element(AZOTE, 1, 7, "Azote", -273, 1, 5, 1.01)
+ice = Element(ICE, 0, 8, "Ice", -15, 0, 2, 1.01)
+steel = Element(STEEL, 0, 9, "Steel", 0, 0, 100, 1)
+azote_gaz = Element(AZOTE_GAZ, -1, 10, "Azote gaz", 0, 1, 5, 1.1)
 
 trans_vapor = Transformation(0, 100, water)
 trans_ice = Transformation(-275, 0, water)
@@ -51,7 +53,7 @@ trans_waterI = Transformation(-275, 0, ice)
 trans_rock = Transformation(1000, 10000000, lava)
 trans_lava = Transformation(-275, 1000, rock)
 trans_sand = Transformation(1000, 1000000, lava)
-trans_azote = Transformation(0, 100, vapor)
+trans_azote = Transformation(0, 100000, azote_gaz)
 
 rock.transform = [trans_rock]
 sand.transform = [trans_sand]
@@ -59,7 +61,7 @@ lava.transform = [trans_lava]
 water.transform = [trans_waterV, trans_waterI]
 ice.transform = [trans_ice]
 vapor.transform = [trans_vapor]
-trans_azote = [trans_azote]
+azote.transform = [trans_azote]
 
 listElement = [void, sand, rock, grass, water, lava, vapor, azote, ice, steel]
 
@@ -101,9 +103,9 @@ mouse_down = False
 def smoothTemperature(row, col):
     radius = 1
     tempatures = []
-
+    grid[row][col].element.temperature /= grid[row][col].element.dissipation
     if grid[row][col].element.id == 0:
-        grid[row][col].temperature = int((grid[row][col].temperature + 0) / 2)
+        grid[row][col].temperature = (grid[row][col].temperature + 0) / 2
     else:
         for i in range(-radius, radius + 1):
             for j in range(-radius, radius + 1):
@@ -184,7 +186,7 @@ def transform(final_element, row, col):
         durability_factor = (1 - max(min(abs(100 / grid[row][col].temperature), 0.1), 0.9))
     grid[row][col].element.durability -= durability_factor
     if grid[row][col].element.durability <= 0:
-        grid[row][col].element = grid[row][col].element.changeElement(final_element, element.temperature - 10)
+        grid[row][col].element = grid[row][col].element.changeElement(final_element, element.temperature/1.2)
         pygame.draw.rect(window, grid[row][col].element.color, (col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE))
 
 
@@ -217,8 +219,7 @@ def radiusTemp(row, col, radius):
             distance = (i - row) ** 2 + (j - col) ** 2
             if distance <= radius ** 2:
                 distance_factor = 1 - ((i - row) ** 2 + (j - col) ** 2) ** 0.5 / radius
-                grid[i][j].temperature = int(
-                    (int(grid[row][col].temperature * distance_factor) + grid[i][j].temperature) / 2)
+                grid[i][j].temperature = (grid[row][col].temperature * distance_factor + grid[i][j].temperature) / 2
 
 
 def lerp(c1, c2, t):
@@ -269,7 +270,9 @@ current_element = lava
 for i in range(COLS):
     placeElement(46, i, rock)
     placeElement(50, i, steel)
-
+    placeElement(51, i, steel)
+    placeElement(52, i, steel)
+    placeElement(53, i, steel)
 while True:
     updateElements()
     for event in pygame.event.get():
@@ -303,7 +306,7 @@ while True:
         window.fill(VOID)
         for row in range(ROWS):
             for col in range(COLS):
-                grid[row][col] = Cell()
+                grid[row][col] = Cell(void.copy())
 
     # Layer button
     if layer_button.check_pressed():
