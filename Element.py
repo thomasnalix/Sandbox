@@ -14,5 +14,5 @@ class Element(object):
     def copy(self):
         return Element(self.color, self.gravity, self.name, self.temperature, self.type, self.durability, self.dissipation, self.propagation, self.transform)
 
-    def changeElement(self, element, temperature):
+    def change_element(self, element, temperature):
         return Element(element.color, element.gravity, element.name, temperature, element.type, element.durability, element.dissipation, element.propagation, element.transform)

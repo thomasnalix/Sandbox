@@ -72,7 +72,6 @@ pygame.init()
 window = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Simulation")
 
-# Create a pygame_gui.UIManager
 ui_manager = pygame_gui.UIManager((WIDTH, HEIGHT))
 
 reset_button = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((20, 150), (100, 40)),
@@ -80,16 +79,13 @@ reset_button = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((20, 150),
                                             manager=ui_manager
                                             )
 layer_button = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((20, 100), (100, 40)),
-                                            text='Layer',
+                                            text='Thermic',
                                             manager=ui_manager
                                             )
-
-dropdown_menu = pygame_gui.elements.UIDropDownMenu(
-    # get All name of item where are int the elementList
-    options_list=[element.name for element in listElement],
-    starting_option='Lava',
-    relative_rect=pygame.Rect((20, 200), (100, 30)),
-    manager=ui_manager)
+dropdown_menu = pygame_gui.elements.UIDropDownMenu(options_list=[element.name for element in listElement],
+                                                   starting_option='Lava',
+                                                   relative_rect=pygame.Rect((20, 200), (100, 30)),
+                                                   manager=ui_manager)
 
 # Create a 2D list and create Cell object at each
 grid = [[Cell(void.copy()) for col in range(COLS)] for row in range(ROWS)]
@@ -97,8 +93,7 @@ grid = [[Cell(void.copy()) for col in range(COLS)] for row in range(ROWS)]
 # Keep track of mouse button status
 mouse_down = False
 
-
-def smoothTemperature(row, col):
+def smooth_temperature(row, col):
     radius = 1
     tempatures = []
 
@@ -114,42 +109,42 @@ def smoothTemperature(row, col):
         grid[row][col].temperature = grid[row][col].element.temperature + sum(tempatures) / len(tempatures)
 
 
-def updateTemperature(row, col):
+def update_temperature(row, col):
     if grid[row][col] != 0:
-        smoothTemperature(row, col)
+        smooth_temperature(row, col)
+        temperature_check(row, col)
 
 
-def updateElements():
-    # Balayage bas vers haut
+def update_elements():
+    # Balayage from bottom to top
     for row in reversed(range(ROWS - 1)):
         for col in range(COLS):
 
+            # Thermic layer
             if LAYER_TEMP == 1:
                 draw_cell(window, grid[row][col].temperature, row, col, CELL_SIZE)
+
             # Floor
             if grid[row][col].element.gravity == 1:
-                updateTemperature(row, col)
                 if grid[row + 1][col].element.gravity in [-1, None]:
-                    updatePositionElements(row, col, 1)
+                    update_position_elements(row, col, 1)
 
-            radiusTemp(row, col, grid[row][col].element.propagation)
+            radius_temp(row, col, grid[row][col].element.propagation)
 
             # For all element where temperature is not 0, we smooth the temperature by the average of the temperature of the element around
-            if grid[row][col].temperature != 0:
-                smoothTemperature(row, col)
-                temperatureCheck(row, col)
+            update_temperature(row, col)
 
-    # Balayage haut vers bas
+    # Balayage from top to bottom
     for row in range(ROWS - 1):
         for col in range(COLS):
             if grid[row][col].element.gravity == -1:
-                updateTemperature(row, col)
+                update_temperature(row, col)
                 if grid[row - 1][col].element.gravity == 1 or grid[row - 1][col].element.gravity in [-1, None]:
-                    updatePositionElements(row, col, grid[row][col].element.gravity)
+                    update_position_elements(row, col, grid[row][col].element.gravity)
     time.sleep(1 / FPS)
 
 
-def temperatureCheck(row, col):
+def temperature_check(row, col):
     # Transformation
     adjacent_temp = 0
     # top, left, right, bottom AND check if element is not out of range
@@ -168,10 +163,10 @@ def temperatureCheck(row, col):
     if element.transform is not None:
         for transformation in element.transform:
             if transformation.temperature_min < average_temp < transformation.temperature_max:
-                transform(transformation.element.copy(), row, col)
+                transform_element(transformation.element.copy(), row, col)
 
 
-def transform(final_element, row, col):
+def transform_element(final_element, row, col):
     durability_factor = 0.1
     temperature = 0
     if grid[row][col].temperature > 0:
@@ -183,27 +178,27 @@ def transform(final_element, row, col):
 
     grid[row][col].element.durability -= durability_factor
     if grid[row][col].element.durability <= 0:
-        grid[row][col].element = grid[row][col].element.changeElement(final_element, temperature)
+        grid[row][col].element = grid[row][col].element.change_element(final_element, temperature)
         pygame.draw.rect(window, grid[row][col].element.color, (col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE))
 
 
-def placeElement(row, col, element):
+def place_element(row, col, element):
     grid[row][col].element = element
     grid[row][col].temperature = (element.temperature + grid[row][col].temperature) / 2
     pygame.draw.rect(window, element.color, (col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE))
-    temperatureCheck(row, col)
-    smoothTemperature(row, col)
+    temperature_check(row, col)
+    smooth_temperature(row, col)
 
 
-def updatePositionElements(row, col, gravity_level):
+def update_position_elements(row, col, gravity_level):
     element_actual = grid[row][col].element
     element_target = grid[row + gravity_level][col].element
-    placeElement(row, col, element_target)
-    placeElement(row + gravity_level, col, element_actual)
-    temperatureCheck(row + gravity_level, col)
+    place_element(row, col, element_target)
+    place_element(row + gravity_level, col, element_actual)
+    temperature_check(row + gravity_level, col)
 
 
-def radiusTemp(row, col, radius):
+def radius_temp(row, col, radius):
     if radius == 0:
         return
     for i in range(row - radius, row + radius + 1):
@@ -227,18 +222,19 @@ def lerp(c1, c2, t):
 # Dessiner les cellules en fonction de leur température
 def draw_cell(window, temperature, i, j, CELL_SIZE):
     if temperature < -250:
-        color = lerp(CYAN, BLUE, (temperature + 250) / -750)
+        color = lerp((0, 0, 255), (0, 255, 255), (temperature + 250) / -750)
     elif temperature < -50:
-        color = lerp(GREEN, CYAN, (temperature + 50) / -200)
+        color = lerp((0, 255, 255), (0, 255, 0), (temperature + 50) / -200)
     elif temperature < 0:
-        color = lerp(YELLOW, GREEN, temperature / -50)
+        color = lerp((0, 255, 0), (255, 255, 0), temperature / -50)
     elif temperature < 100:
-        color = lerp(YELLOW, ORANGE, temperature / 100)
+        color = lerp((255, 255, 0), (255, 165, 0), temperature / 100)
     elif temperature < 1000:
-        color = lerp(ORANGE, RED, temperature / 900)
+        color = lerp((255, 165, 0), (255, 0, 0), (temperature - 100) / 900)
     else:
-        color = RED
+        color = (255, 0, 0)
     pygame.draw.rect(window, color, (j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+
 
 
 current_cell = None
@@ -246,14 +242,14 @@ current_element = lava
 
 # Initialisation of preadefined elements
 for i in range(COLS):
-    placeElement(46, i, rock)
-    placeElement(50, i, steel)
-    placeElement(51, i, steel)
-    placeElement(52, i, steel)
-    placeElement(53, i, steel)
+    place_element(46, i, rock)
+    place_element(50, i, steel)
+    place_element(51, i, steel)
+    place_element(52, i, steel)
+    place_element(53, i, steel)
 
 while True:
-    updateElements()
+    update_elements()
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
@@ -271,8 +267,9 @@ while True:
             if mouse_down and 0 <= row < ROWS and 0 <= col < COLS:
 
                 if (row, col) != current_cell:
-                    placeElement(row, col, current_element)
+                    place_element(row, col, current_element)
                 current_cell = (row, col)
+                # print temperature of the cell of each row and column
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_down = True  # Set mouse button status to down
