@@ -26,13 +26,7 @@ ICE = (0, 180, 180)
 STEEL = (200, 200, 200)
 AZOTE_GAZ = (128, 255, 128)
 
-BLUE = (0, 0, 255)
-CYAN = (0, 255, 255)
-GREEN = (0, 255, 0)
-YELLOW = (255, 255, 0)
-ORANGE = (255, 165, 0)
-RED = (255, 0, 0)
-
+# Elements
 void = Element(VOID, None, "Void", 0, 'VOID', 0, 1, 0)
 sand = Element(SAND, 1, "Sand", 0, 'FALLING', 2, 1, 0)
 rock = Element(ROCK, 0, "Rock", 0, 'SOLID', 10, 1, 0)
@@ -44,6 +38,7 @@ ice = Element(ICE, 0, "Ice", -15, 'SOLID', 0, 1.01, 2)
 steel = Element(STEEL, 0, "Steel", 0, 'SOLID', 100, 1, 0)
 azote_gaz = Element(AZOTE_GAZ, -1, "Azote gaz", 0, 'FALLING', 5, 1.1, 0)
 
+# Transformations
 trans_vapor = Transformation(0, 100, water)
 trans_ice = Transformation(-275, 0, water)
 trans_waterV = Transformation(100, 100000, vapor)
@@ -61,6 +56,7 @@ ice.transform = [trans_ice]
 vapor.transform = [trans_vapor]
 azote.transform = [trans_azote]
 
+# Menu items
 listElement = [void, sand, rock, water, lava, vapor, azote, ice, steel, azote_gaz]
 
 # Set up clock
@@ -92,6 +88,7 @@ grid = [[Cell(void.copy()) for col in range(COLS)] for row in range(ROWS)]
 
 # Keep track of mouse button status
 mouse_down = False
+
 
 def smooth_temperature(row, col):
     radius = 1
@@ -130,8 +127,6 @@ def update_elements():
                     update_position_elements(row, col, 1)
 
             radius_temp(row, col, grid[row][col].element.propagation)
-
-            # For all element where temperature is not 0, we smooth the temperature by the average of the temperature of the element around
             update_temperature(row, col)
 
     # Balayage from top to bottom
@@ -145,7 +140,6 @@ def update_elements():
 
 
 def temperature_check(row, col):
-    # Transformation
     adjacent_temp = 0
     # top, left, right, bottom AND check if element is not out of range
     if 0 <= row - 1 < ROWS:
@@ -160,10 +154,11 @@ def temperature_check(row, col):
 
     average_temp = adjacent_temp / 5
     element = grid[row][col].element
-    if element.transform is not None:
-        for transformation in element.transform:
-            if transformation.temperature_min < average_temp < transformation.temperature_max:
-                transform_element(transformation.element.copy(), row, col)
+    if element.transform is None:
+        return
+    for transformation in element.transform:
+        if transformation.temperature_min < average_temp < transformation.temperature_max:
+            transform_element(transformation.element.copy(), row, col)
 
 
 def transform_element(final_element, row, col):
@@ -220,7 +215,7 @@ def lerp(c1, c2, t):
 
 
 # Dessiner les cellules en fonction de leur température
-def draw_cell(window, temperature, i, j, CELL_SIZE):
+def draw_cell(window, temperature, i, j, cell_size):
     if temperature < -250:
         color = lerp((0, 0, 255), (0, 255, 255), (temperature + 250) / -750)
     elif temperature < -50:
@@ -233,8 +228,7 @@ def draw_cell(window, temperature, i, j, CELL_SIZE):
         color = lerp((255, 165, 0), (255, 0, 0), (temperature - 100) / 900)
     else:
         color = (255, 0, 0)
-    pygame.draw.rect(window, color, (j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE))
-
+    pygame.draw.rect(window, color, (j * cell_size, i * cell_size, cell_size, cell_size))
 
 
 current_cell = None
