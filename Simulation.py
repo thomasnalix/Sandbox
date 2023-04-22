@@ -18,14 +18,13 @@ LAYER_TEMP = 0
 VOID = (0, 0, 0)
 SAND = (255, 255, 0)
 ROCK = (128, 128, 128)
-GRASS = (0, 255, 0)
 WATER = (0, 0, 255)
 LAVA = (255, 0, 0)
 VAPOR = (0, 255, 255)
 AZOTE = (0, 255, 128)
 ICE = (0, 180, 180)
 STEEL = (200, 200, 200)
-AZOTE_GAZ = (250, 250, 255)
+AZOTE_GAZ = (128, 255, 128)
 
 BLUE = (0, 0, 255)
 CYAN = (0, 255, 255)
@@ -34,17 +33,16 @@ YELLOW = (255, 255, 0)
 ORANGE = (255, 165, 0)
 RED = (255, 0, 0)
 
-void = Element(VOID, 0, 0, "Void", 0, -1, 0, 1)
-sand = Element(SAND, 1, 1, "Sand", 0, 1, 2, 1)
-rock = Element(ROCK, 0, 2, "Rock", 0, 0, 10, 1)
-grass = Element(GRASS, 0, 3, "Grass", 0, 0, 100, 1)
-water = Element(WATER, 1, 4, "Water", 23, 10, 10, 1.01)
-lava = Element(LAVA, 1, 5, "Lava", 2000, 1, 5, 1.0001)
-vapor = Element(VAPOR, -1, 6, "Vapor", 100, 1, 5, 1.01)
-azote = Element(AZOTE, 1, 7, "Azote", -273, 1, 5, 1.01)
-ice = Element(ICE, 0, 8, "Ice", -15, 0, 2, 1.01)
-steel = Element(STEEL, 0, 9, "Steel", 0, 0, 100, 1)
-azote_gaz = Element(AZOTE_GAZ, -1, 10, "Azote gaz", 0, 1, 5, 1.1)
+void = Element(VOID, None, "Void", 0, 'VOID', 0, 1, 0)
+sand = Element(SAND, 1, "Sand", 0, 'FALLING', 2, 1, 0)
+rock = Element(ROCK, 0, "Rock", 0, 'SOLID', 10, 1, 0)
+water = Element(WATER, 1, "Water", 23, 'FALLING', 10, 1.01, 2)
+lava = Element(LAVA, 1, "Lava", 2000, 'FALLING', 1, 1.001, 4)
+vapor = Element(VAPOR, -1, "Vapor", 100, 'FALLING', 5, 1.01, 4)
+azote = Element(AZOTE, 1, "Azote", -273, 'FALLING', 5, 1.001, 4)
+ice = Element(ICE, 0, "Ice", -15, 'SOLID', 0, 1.01, 2)
+steel = Element(STEEL, 0, "Steel", 0, 'SOLID', 100, 1, 0)
+azote_gaz = Element(AZOTE_GAZ, -1, "Azote gaz", 0, 'FALLING', 5, 1.1, 0)
 
 trans_vapor = Transformation(0, 100, water)
 trans_ice = Transformation(-275, 0, water)
@@ -63,7 +61,7 @@ ice.transform = [trans_ice]
 vapor.transform = [trans_vapor]
 azote.transform = [trans_azote]
 
-listElement = [void, sand, rock, grass, water, lava, vapor, azote, ice, steel]
+listElement = [void, sand, rock, water, lava, vapor, azote, ice, steel, azote_gaz]
 
 # Set up clock
 clock = pygame.time.Clock()
@@ -103,8 +101,10 @@ mouse_down = False
 def smoothTemperature(row, col):
     radius = 1
     tempatures = []
+
+    grid[row][col].temperature /= grid[row][col].element.dissipation
     grid[row][col].element.temperature /= grid[row][col].element.dissipation
-    if grid[row][col].element.id == 0:
+    if grid[row][col].element.type == 'VOID':
         grid[row][col].temperature = (grid[row][col].temperature + 0) / 2
     else:
         for i in range(-radius, radius + 1):
@@ -129,17 +129,10 @@ def updateElements():
             # Floor
             if grid[row][col].element.gravity == 1:
                 updateTemperature(row, col)
-                if grid[row + 1][col].element.id == 0:
+                if grid[row + 1][col].element.gravity in [-1, None]:
                     updatePositionElements(row, col, 1)
 
-                # Calcul propagation of heat
-                if grid[row][col].element.id in [4, 7, 5, 6]:
-                    radiusTemp(row, col, 4)
-
-            # Calcul heat propagation for ice
-            if grid[row][col].element.gravity == 0:
-                if grid[row][col].element.id == 8:
-                    radiusTemp(row, col, 3)
+            radiusTemp(row, col, grid[row][col].element.propagation)
 
             # For all element where temperature is not 0, we smooth the temperature by the average of the temperature of the element around
             if grid[row][col].temperature != 0:
@@ -151,8 +144,8 @@ def updateElements():
         for col in range(COLS):
             if grid[row][col].element.gravity == -1:
                 updateTemperature(row, col)
-                if grid[row - 1][col].element.gravity == 1 or grid[row - 1][col].element.id == 0:
-                    permutationElement(row, col, grid[row][col].element.gravity)
+                if grid[row - 1][col].element.gravity == 1 or grid[row - 1][col].element.gravity in [-1, None]:
+                    updatePositionElements(row, col, grid[row][col].element.gravity)
     time.sleep(1 / FPS)
 
 
@@ -180,21 +173,18 @@ def temperatureCheck(row, col):
 
 def transform(final_element, row, col):
     durability_factor = 0.1
+    temperature = 0
     if grid[row][col].temperature > 0:
         durability_factor = (1 - max(min(100 / grid[row][col].temperature, 0.1), 0.9))
+        temperature = max(grid[row][col].element.temperature / 1.2, 0)
     elif grid[row][col].temperature < 0:
         durability_factor = (1 - max(min(abs(100 / grid[row][col].temperature), 0.1), 0.9))
+        temperature = min(grid[row][col].element.temperature / 1.2, 0)
+
     grid[row][col].element.durability -= durability_factor
     if grid[row][col].element.durability <= 0:
-        grid[row][col].element = grid[row][col].element.changeElement(final_element, element.temperature/1.2)
+        grid[row][col].element = grid[row][col].element.changeElement(final_element, temperature)
         pygame.draw.rect(window, grid[row][col].element.color, (col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE))
-
-
-def permutationElement(row, col, gravity):
-    element_to_replace = grid[row + gravity][col].element
-    element_target = grid[row][col].element
-    placeElement(row, col, element_to_replace)
-    placeElement(row + gravity, col, element_target)
 
 
 def placeElement(row, col, element):
@@ -214,6 +204,8 @@ def updatePositionElements(row, col, gravity_level):
 
 
 def radiusTemp(row, col, radius):
+    if radius == 0:
+        return
     for i in range(row - radius, row + radius + 1):
         for j in range(col - radius, col + radius + 1):
             distance = (i - row) ** 2 + (j - col) ** 2
@@ -226,53 +218,40 @@ def lerp(c1, c2, t):
     r = int(c1[0] + (c2[0] - c1[0]) * t)
     g = int(c1[1] + (c2[1] - c1[1]) * t)
     b = int(c1[2] + (c2[2] - c1[2]) * t)
-    if r < 0:
-        r = 0
-    elif r > 255:
-        r = 255
-    if g < 0:
-        g = 0
-    elif g > 255:
-        g = 255
-    if b < 0:
-        b = 0
-    elif b > 255:
-        b = 255
+    r = max(0, min(r, 255))
+    g = max(0, min(g, 255))
+    b = max(0, min(b, 255))
     return r, g, b
 
 
 # Dessiner les cellules en fonction de leur température
 def draw_cell(window, temperature, i, j, CELL_SIZE):
     if temperature < -250:
-        color = lerp(CYAN, BLUE, (temperature + 250) / -200)
+        color = lerp(CYAN, BLUE, (temperature + 250) / -750)
     elif temperature < -50:
-        color = lerp(GREEN, CYAN, (temperature + 50) / -50)
+        color = lerp(GREEN, CYAN, (temperature + 50) / -200)
     elif temperature < 0:
-        color = lerp(GREEN, YELLOW, temperature / 50)
+        color = lerp(YELLOW, GREEN, temperature / -50)
     elif temperature < 100:
         color = lerp(YELLOW, ORANGE, temperature / 100)
     elif temperature < 1000:
-        color = lerp(ORANGE, RED, (temperature - 100) / 900)
+        color = lerp(ORANGE, RED, temperature / 900)
     else:
         color = RED
     pygame.draw.rect(window, color, (j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE))
 
 
-def getElementById(id):
-    for element in listElement:
-        if element.id == id:
-            return element
-
-
 current_cell = None
 current_element = lava
 
+# Initialisation of preadefined elements
 for i in range(COLS):
     placeElement(46, i, rock)
     placeElement(50, i, steel)
     placeElement(51, i, steel)
     placeElement(52, i, steel)
     placeElement(53, i, steel)
+
 while True:
     updateElements()
     for event in pygame.event.get():
